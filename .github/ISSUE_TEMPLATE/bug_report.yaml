@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-generated/*
-target
-dependency-reduced-pom.xml
-.classpath
-.project
-
-# IDE stuff
-.idea/
-*.iml
-*.ipr
-*.iws
+name: Bug Report
+description: File a bug report
+labels: ["Type: bug"]
+assignees: []
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug, including details regarding any error messages, version, and platform.
+      description: Please include what you expected.
+    validations:
+      required: true

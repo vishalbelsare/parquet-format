@@ -15,14 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-generated/*
-target
-dependency-reduced-pom.xml
-.classpath
-.project
-
-# IDE stuff
-.idea/
-*.iml
-*.ipr
-*.iws
+blank_issues_enabled: false

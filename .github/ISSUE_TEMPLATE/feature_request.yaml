@@ -15,14 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-generated/*
-target
-dependency-reduced-pom.xml
-.classpath
-.project
-
-# IDE stuff
-.idea/
-*.iml
-*.ipr
-*.iws
+name: Enhancement Request
+description: Request an enhancement to the project
+labels: ["Type: enhancement"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to share your feedback on ways Apache Parquet can be improved!
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the enhancement requested
+    validations:
+      required: true

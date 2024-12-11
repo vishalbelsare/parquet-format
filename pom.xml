@@ -23,12 +23,12 @@
   <parent>
     <groupId>org.apache</groupId>
     <artifactId>apache</artifactId>
-    <version>16</version>
+    <version>33</version>
   </parent>
 
   <groupId>org.apache.parquet</groupId>
   <artifactId>parquet-format</artifactId>
-  <version>2.10.0-SNAPSHOT</version>
+  <version>2.11.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>Apache Parquet Format</name>
@@ -52,8 +52,8 @@
   </licenses>
 
   <issueManagement>
-    <system>JIRA</system>
-    <url>https://issues.apache.org/jira/browse/PARQUET</url>
+    <system>GitHub</system>
+    <url>https://github.com/apache/parquet-format/issues</url>
   </issueManagement>
 
   <mailingLists>
@@ -71,23 +71,12 @@
     </mailingList>
   </mailingLists>
 
-  <developers>
-    <developer>
-      <name>Julien Le Dem</name>
-      <email>julien@twitter.com</email>
-    </developer>
-    <developer>
-      <name>Nong Li</name>
-      <email>nong@cloudera.com</email>
-    </developer>
-  </developers>
-
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <shade.prefix>shaded.parquet</shade.prefix>
     <thrift.executable>thrift</thrift.executable>
-    <thrift.version>0.13.0</thrift.version>
+    <thrift.version>0.21.0</thrift.version>
     <thrift-maven-plugin.version>0.10.0</thrift-maven-plugin.version>
   </properties>
 
@@ -127,21 +116,14 @@
         <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
           <additionalparam>-Xdoclint:none</additionalparam>
-        </configuration>
-      </plugin>
-      <plugin>
-        <!-- Override source and target from the ASF parent -->
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>${maven.compiler.source}</source>
-          <target>${maven.compiler.target}</target>
+          <additionalOptions>-Xdoclint:none</additionalOptions>
+          <additionalJOption>-Xdoclint:none</additionalJOption>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>2.2</version>
+        <version>3.6.0</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -178,7 +160,7 @@
       <plugin>
         <groupId>org.apache.rat</groupId>
         <artifactId>apache-rat-plugin</artifactId>
-        <version>0.12</version>
+        <version>0.16.1</version>
         <executions>
           <execution>
             <phase>test</phase>
@@ -233,12 +215,22 @@
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>4.10</version>
+      <version>4.13.2</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
 
   <profiles>
+    <profile>
+      <id>jdk9+</id>
+      <activation>
+        <jdk>[9,)</jdk>
+      </activation>
+      <properties>
+        <!-- release takes precedence over source/target if java version is 9 or higher -->
+        <maven.compiler.release>8</maven.compiler.release>
+      </properties>
+    </profile>
     <profile>
       <activation>
         <os>
@@ -251,7 +243,7 @@
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>exec-maven-plugin</artifactId>
-            <version>1.2.1</version>
+            <version>3.5.0</version>
             <executions>
               <execution>
                 <id>check-thrift-version</id>
