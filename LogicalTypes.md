@@ -23,7 +23,8 @@ Parquet Logical Type Definitions
 Logical types are used to extend the types that parquet can be used to store,
 by specifying how the primitive types should be interpreted. This keeps the set
 of primitive types to a minimum and reuses parquet's efficient encodings. For
-example, strings are stored as byte arrays (binary) with a UTF8 annotation.
+example, strings are stored with the primitive type `BYTE_ARRAY` with a `STRING`
+annotation.
 
 This file contains the specification for all logical types.
 
@@ -59,7 +60,7 @@ Compatibility considerations are mentioned for each annotation in the correspond
 
 ### STRING
 
-`STRING` may only be used to annotate the binary primitive type and indicates
+`STRING` may only be used to annotate the `BYTE_ARRAY` primitive type and indicates
 that the byte array should be interpreted as a UTF-8 encoded character string.
 
 The sort order used for `STRING` strings is unsigned byte-wise comparison.
@@ -70,7 +71,7 @@ The sort order used for `STRING` strings is unsigned byte-wise comparison.
 
 ### ENUM
 
-`ENUM` annotates the binary primitive type and indicates that the value
+`ENUM` annotates the `BYTE_ARRAY` primitive type and indicates that the value
 was converted from an enumerated type in another data model (e.g. Thrift, Avro, Protobuf).
 Applications using a data model lacking a native enum type should interpret `ENUM`
 annotated field as a UTF-8 encoded string. 
@@ -79,9 +80,9 @@ The sort order used for `ENUM` values is unsigned byte-wise comparison.
 
 ### UUID
 
-`UUID` annotates a 16-byte fixed-length binary. The value is encoded using
-big-endian, so that `00112233-4455-6677-8899-aabbccddeeff` is encoded as the
-bytes `00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff`
+`UUID` annotates a 16-byte `FIXED_LEN_BYTE_ARRAY` primitive type. The value is
+encoded using big-endian, so that `00112233-4455-6677-8899-aabbccddeeff` is encoded
+as the bytes `00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff`
 (This example is from [wikipedia's UUID page][wiki-uuid]).
 
 The sort order used for `UUID` values is unsigned byte-wise comparison.
@@ -211,15 +212,15 @@ unsigned integers with 8, 16, 32, or 64 bit width.
 `DECIMAL` annotation represents arbitrary-precision signed decimal numbers of
 the form `unscaledValue * 10^(-scale)`.
 
-The primitive type stores an unscaled integer value. For byte arrays, binary
-and fixed, the unscaled number must be encoded as two's complement using
+The primitive type stores an unscaled integer value. For `BYTE_ARRAY` and 
+`FIXED_LEN_BYTE_ARRAY`, the unscaled number must be encoded as two's complement using
 big-endian byte order (the most significant byte is the zeroth element). The
 scale stores the number of digits of that value that are to the right of the
 decimal point, and the precision stores the maximum number of digits supported
 in the unscaled value.
 
 If not specified, the scale is 0. Scale must be zero or a positive integer less
-than the precision. Precision is required and must be a non-zero positive
+than or equal to the precision. Precision is required and must be a non-zero positive
 integer. A precision too large for the underlying type (see below) is an error.
 
 `DECIMAL` can be used to annotate the following types:
@@ -228,7 +229,7 @@ integer. A precision too large for the underlying type (see below) is an error.
   warning
 * `fixed_len_byte_array`: precision is limited by the array size. Length `n`
   can store &lt;= `floor(log_10(2^(8*n - 1) - 1))` base-10 digits
-* `binary`: `precision` is not limited, but is required. The minimum number of
+* `byte_array`: `precision` is not limited, but is required. The minimum number of
   bytes to store the unscaled value should be used.
 
 The sort order used for `DECIMAL` values is signed comparison of the represented
@@ -245,11 +246,21 @@ comparison.
 To support compatibility with older readers, implementations of parquet-format should
 write `DecimalType` precision and scale into the corresponding SchemaElement field in metadata.
 
+### FLOAT16
+
+The `FLOAT16` annotation represents half-precision floating-point numbers in the 2-byte IEEE little-endian format.
+
+Used in contexts where precision is traded off for smaller footprint and potentially better performance.
+
+The primitive type is a 2-byte `FIXED_LEN_BYTE_ARRAY`.
+
+The sort order for `FLOAT16` is signed (with special handling of NANs and signed zeros); it uses the same [logic](https://github.com/apache/parquet-format#sort-order) as `FLOAT` and `DOUBLE`.
+
 ## Temporal Types
 
 ### DATE
 
-`DATE` is used to for a logical date type, without a time of day. It must
+`DATE` is used for a logical date type, without a time of day. It must
 annotate an `int32` that stores the number of days from the Unix epoch, 1
 January 1970.
 
@@ -534,8 +545,8 @@ Embedded types do not have type-specific orderings.
 
 ### JSON
 
-`JSON` is used for an embedded JSON document. It must annotate a `binary`
-primitive type. The `binary` data is interpreted as a UTF-8 encoded character
+`JSON` is used for an embedded JSON document. It must annotate a `BYTE_ARRAY`
+primitive type. The `BYTE_ARRAY` data is interpreted as a UTF-8 encoded character
 string of valid JSON as defined by the [JSON specification][json-spec]
 
 [json-spec]: http://json.org/
@@ -544,13 +555,82 @@ The sort order used for `JSON` is unsigned byte-wise comparison.
 
 ### BSON
 
-`BSON` is used for an embedded BSON document. It must annotate a `binary`
-primitive type. The `binary` data is interpreted as an encoded BSON document as
+`BSON` is used for an embedded BSON document. It must annotate a `BYTE_ARRAY`
+primitive type. The `BYTE_ARRAY` data is interpreted as an encoded BSON document as
 defined by the [BSON specification][bson-spec].
 
 [bson-spec]: http://bsonspec.org/spec.html
 
 The sort order used for `BSON` is unsigned byte-wise comparison.
+
+### VARIANT
+
+`VARIANT` is used for a Variant value. It must annotate a group. The group must
+contain a field named `metadata` and a field named `value`. Both fields must have
+type `binary`, which is also called `BYTE_ARRAY` in the Parquet thrift definition.
+The `VARIANT` annotated group can be used to store either an unshredded Variant
+value, or a shredded Variant value.
+
+* The Variant group must be annotated with the `VARIANT` logical type.
+* Both fields `value` and `metadata` must be of type `binary` (called `BYTE_ARRAY`
+  in the Parquet thrift definition).
+* The `metadata` field is required and must be a valid Variant metadata component,
+  as defined by the [Variant binary encoding specification](VariantEncoding.md).
+* When present, the `value` field must be a valid Variant value component,
+  as defined by the [Variant binary encoding specification](VariantEncoding.md).
+* The `value` field is required for unshredded Variant values.
+* The `value` field is optional and may be null only when parts of the Variant
+  value are shredded according to the [Variant shredding specification](VariantShredding.md).
+
+This is the expected representation of an unshredded Variant in Parquet:
+```
+optional group variant_unshredded (VARIANT) {
+  required binary metadata;
+  required binary value;
+}
+```
+
+This is an example representation of a shredded Variant in Parquet:
+```
+optional group variant_shredded (VARIANT) {
+  required binary metadata;
+  optional binary value;
+  optional int64 typed_value;
+}
+```
+
+### GEOMETRY
+
+`GEOMETRY` is used for geospatial features in the Well-Known Binary (WKB) format
+with linear/planar edges interpolation. It must annotate a `BYTE_ARRAY`
+primitive type. See [Geospatial.md](Geospatial.md) for more detail.
+
+The type has only one type parameter:
+- `crs`: An optional string value for CRS. If unset, the CRS defaults to
+  `"OGC:CRS84"`, which means that the geometries must be stored in longitude,
+  latitude based on the WGS84 datum.
+
+The sort order used for `GEOMETRY` is undefined. When writing data, no min/max
+statistics should be saved for this type and if such non-compliant statistics
+are found during reading, they must be ignored. 
+
+### GEOGRAPHY
+
+`GEOGRAPHY` is used for geospatial features in the WKB format with an explicit
+(non-linear/non-planar) edges interpolation algorithm. It must annotate a
+`BYTE_ARRAY` primitive type. See [Geospatial.md](Geospatial.md) for more detail.
+
+The type has two type parameters:
+- `crs`: An optional string value for CRS. It must be a geographic CRS, where
+  longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
+  If unset, the CRS defaults to `"OGC:CRS84"`.
+- `algorithm`: An optional enum value to describes the edge interpolation
+  algorithm. Supported values are: `SPHERICAL`, `VINCENTY`, `THOMAS`, `ANDOYER`,
+  `KARNEY`. If unset, the algorithm defaults to `SPHERICAL`.
+
+The sort order used for `GEOGRAPHY` is undefined. When writing data, no min/max
+statistics should be saved for this type and if such non-compliant statistics
+are found during reading, they must be ignored. 
 
 ## Nested Types
 
@@ -562,9 +642,23 @@ that is neither contained by a `LIST`- or `MAP`-annotated group nor annotated
 by `LIST` or `MAP` should be interpreted as a required list of required
 elements where the element type is the type of the field.
 
-Implementations should use either `LIST` and `MAP` annotations _or_ unannotated
-repeated fields, but not both. When using the annotations, no unannotated
-repeated types are allowed.
+```
+WARNING: writers should not produce list types like these examples! They are
+just for the purpose of reading existing data for backward-compatibility.
+
+// List<Integer> (non-null list, non-null elements)
+repeated int32 num;
+
+// List<Tuple<Integer, String>> (non-null list, non-null elements)
+repeated group my_list {
+  required int32 num;
+  optional binary str (STRING);
+}
+```
+
+For all fields in the schema, implementations should use either `LIST` and
+`MAP` annotations _or_ unannotated repeated fields, but not both. When using
+the annotations, no unannotated repeated types are allowed.
 
 ### Lists
 
@@ -594,14 +688,14 @@ The following examples demonstrate two of the possible lists of string values.
 // List<String> (list non-null, elements nullable)
 required group my_list (LIST) {
   repeated group list {
-    optional binary element (UTF8);
+    optional binary element (STRING);
   }
 }
 
 // List<String> (list nullable, elements non-null)
 optional group my_list (LIST) {
   repeated group list {
-    required binary element (UTF8);
+    required binary element (STRING);
   }
 }
 ```
@@ -623,6 +717,11 @@ optional group array_of_arrays (LIST) {
 
 #### Backward-compatibility rules
 
+New writer implementations should always produce the 3-level LIST structure shown
+above. However, historically data files have been produced that use different
+structures to represent list-like data, and readers may include compatibility
+measures to interpret them as intended.
+
 It is required that the repeated group of elements is named `list` and that
 its element field is named `element`. However, these names may not be used in
 existing data and should not be enforced as errors when reading. For example,
@@ -632,52 +731,76 @@ even though the repeated group is named `element`.
 ```
 optional group my_list (LIST) {
   repeated group element {
-    required binary str (UTF8);
+    required binary str (STRING);
   };
 }
 ```
 
-Some existing data does not include the inner element layer. For
-backward-compatibility, the type of elements in `LIST`-annotated structures
+Some existing data does not include the inner element layer, resulting in a
+`LIST` that annotates a 2-level structure. Unlike the 3-level structure, the
+repetition of a 2-level structure can be `optional`, `required`, or `repeated`.
+When it is `repeated`, the `LIST`-annotated 2-level structure can only serve as
+an element within another `LIST`-annotated 2-level structure.
+
+For backward-compatibility, the type of elements in `LIST`-annotated structures
 should always be determined by the following rules:
 
 1. If the repeated field is not a group, then its type is the element type and
    elements are required.
 2. If the repeated field is a group with multiple fields, then its type is the
    element type and elements are required.
-3. If the repeated field is a group with one field and is named either `array`
+3. If the repeated field is a group with one field with `repeated` repetition,
+   then its type is the element type and elements are required.
+4. If the repeated field is a group with one field and is named either `array`
    or uses the `LIST`-annotated group's name with `_tuple` appended then the
    repeated type is the element type and elements are required.
-4. Otherwise, the repeated field's type is the element type with the repeated
+5. Otherwise, the repeated field's type is the element type with the repeated
    field's repetition.
 
 Examples that can be interpreted using these rules:
 
 ```
-// List<Integer> (nullable list, non-null elements)
+WARNING: writers should not produce list types like these examples! They are
+just for the purpose of reading existing data for backward-compatibility.
+
+// Rule 1: List<Integer> (nullable list, non-null elements)
 optional group my_list (LIST) {
   repeated int32 element;
 }
 
-// List<Tuple<String, Integer>> (nullable list, non-null elements)
+// Rule 2: List<Tuple<String, Integer>> (nullable list, non-null elements)
 optional group my_list (LIST) {
   repeated group element {
-    required binary str (UTF8);
+    required binary str (STRING);
     required int32 num;
   };
 }
 
-// List<OneTuple<String>> (nullable list, non-null elements)
+// Rule 3: List<List<Integer>> (nullable outer list, non-null elements)
 optional group my_list (LIST) {
-  repeated group array {
-    required binary str (UTF8);
+  repeated group array (LIST) {
+    repeated int32 array;
   };
 }
 
-// List<OneTuple<String>> (nullable list, non-null elements)
+// Rule 4: List<OneTuple<String>> (nullable list, non-null elements)
+optional group my_list (LIST) {
+  repeated group array {
+    required binary str (STRING);
+  };
+}
+
+// Rule 4: List<OneTuple<String>> (nullable list, non-null elements)
 optional group my_list (LIST) {
   repeated group my_list_tuple {
-    required binary str (UTF8);
+    required binary str (STRING);
+  };
+}
+
+// Rule 5: List<String>  (nullable list, nullable elements)
+optional group my_list (LIST) {
+  repeated group element {
+    optional binary str (STRING);
   };
 }
 ```
@@ -698,13 +821,17 @@ to values. `MAP` must annotate a 3-level structure:
 
 * The outer-most level must be a group annotated with `MAP` that contains a
   single field named `key_value`. The repetition of this level must be either
-  `optional` or `required` and determines whether the list is nullable.
+  `optional` or `required` and determines whether the map is nullable.
 * The middle level, named `key_value`, must be a repeated group with a `key`
-  field for map keys and, optionally, a `value` field for map values.
+  field for map keys and, optionally, a `value` field for map values. It must
+  not contain any other values.
 * The `key` field encodes the map's key type. This field must have
-  repetition `required` and must always be present.
+  repetition `required` and must always be present. It must always be the first
+  field of the repeated `key_value` group.
 * The `value` field encodes the map's value type and repetition. This field can
-  be `required`, `optional`, or omitted.
+  be `required`, `optional`, or omitted. It must always be the second field of
+  the repeated `key_value` group if present. In case of not present, it can be
+  represented as a map with all null values or as a set of keys.
 
 The following example demonstrates the type for a non-null map from strings to
 nullable integers:
@@ -713,7 +840,7 @@ nullable integers:
 // Map<String, Integer>
 required group my_map (MAP) {
   repeated group key_value {
-    required binary key (UTF8);
+    required binary key (STRING);
     optional int32 value;
   }
 }
@@ -730,6 +857,7 @@ keys.
 It is required that the repeated group of key-value pairs is named `key_value`
 and that its fields are named `key` and `value`. However, these names may not
 be used in existing data and should not be enforced as errors when reading.
+(`key` and `value` can be identified by their position in case of misnaming.)
 
 Some existing data incorrectly used `MAP_KEY_VALUE` in place of `MAP`. For
 backward-compatibility, a group annotated with `MAP_KEY_VALUE` that is not
@@ -742,7 +870,7 @@ Examples that can be interpreted using these rules:
 // Map<String, Integer> (nullable map, non-null values)
 optional group my_map (MAP) {
   repeated group map {
-    required binary str (UTF8);
+    required binary str (STRING);
     required int32 num;
   }
 }
@@ -750,7 +878,7 @@ optional group my_map (MAP) {
 // Map<String, Integer> (nullable map, nullable values)
 optional group my_map (MAP_KEY_VALUE) {
   repeated group map {
-    required binary key (UTF8);
+    required binary key (STRING);
     optional int32 value;
   }
 }

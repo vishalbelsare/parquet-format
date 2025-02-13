@@ -25,8 +25,8 @@ This document contains the specification of all supported compression codecs.
 
 Parquet allows the data block inside dictionary pages and data pages to
 be compressed for better space efficiency. The Parquet format supports
-several compression covering different areas in the compression ratio /
-processing cost spectrum.
+several compression codecs covering different areas in the compression
+ratio / processing cost spectrum.
 
 The detailed specifications of compression codecs are maintained externally
 by their respective authors or maintainers, which we reference hereafter.
@@ -57,6 +57,10 @@ A codec based on the GZIP format (not the closely-related "zlib" or "deflate"
 formats) defined by [RFC 1952](https://tools.ietf.org/html/rfc1952).
 If any ambiguity arises when implementing this format, the implementation
 provided by the [zlib compression library](https://zlib.net/) is authoritative.
+
+Readers should support reading pages containing multiple GZIP members, however,
+as this has historically not been supported by all implementations, it is recommended
+that writers refrain from creating such pages by default for better interoperability.
 
 ### LZO
 

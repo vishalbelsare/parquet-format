@@ -19,12 +19,17 @@
 
 # Parquet [![Build Status](https://github.com/apache/parquet-format/actions/workflows/test.yml/badge.svg)](https://github.com/apache/parquet-format/actions)
 
-Parquet is a columnar storage format that supports nested data.
+This repository contains the specification for [Apache Parquet] and
+[Apache Thrift] definitions to read and write Parquet metadata.
 
-Parquet metadata is encoded using Apache Thrift.
+Apache Parquet is an open source, column-oriented data file format
+designed for efficient data storage and retrieval. It provides high
+performance compression and encoding schemes to handle complex data in
+bulk and is supported in many programming language and analytics
+tools.
 
-The `Parquet-format` project contains all Thrift definitions that are necessary to create readers
-and writers for Parquet files.
+[Apache Parquet]: https://parquet.apache.org
+[Apache Thrift]: https://thrift.apache.org
 
 ## Motivation
 
@@ -38,11 +43,15 @@ Parquet is built to be used by anyone. The Hadoop ecosystem is rich with data pr
 
 ## Modules
 
-The `parquet-format` project contains format specifications and Thrift definitions of metadata required to properly read Parquet files.
+The [parquet-format] project contains format specifications and Thrift definitions of metadata required to properly read Parquet files.
 
-The `parquet-mr` project contains multiple sub-modules, which implement the core components of reading and writing a nested, column-oriented data stream, map this core onto the parquet format, and provide Hadoop Input/Output Formats, Pig loaders, and other java-based utilities for interacting with Parquet.
+The [parquet-java] project contains multiple sub-modules, which implement the core components of reading and writing a nested, column-oriented data stream, map this core onto the parquet format, and provide Hadoop Input/Output Formats, Pig loaders, and other java-based utilities for interacting with Parquet.
 
-The `parquet-compatibility` project contains compatibility tests that can be used to verify that implementations in different languages can read and write each other's files.
+The [parquet-testing] project contains a set of files that can be used to verify that implementations in different languages can read and write each other's files.
+
+[parquet-format]: https://github.com/apache/parquet-format
+[parquet-java]: https://github.com/apache/parquet-java
+[parquet-testing]: https://github.com/apache/parquet-testing
 
 ## Building
 
@@ -84,29 +93,29 @@ more pages.
 This file and the [Thrift definition](src/main/thrift/parquet.thrift) should be read together to understand the format.
 
     4-byte magic number "PAR1"
-    <Column 1 Chunk 1 + Column Metadata>
-    <Column 2 Chunk 1 + Column Metadata>
+    <Column 1 Chunk 1>
+    <Column 2 Chunk 1>
     ...
-    <Column N Chunk 1 + Column Metadata>
-    <Column 1 Chunk 2 + Column Metadata>
-    <Column 2 Chunk 2 + Column Metadata>
+    <Column N Chunk 1>
+    <Column 1 Chunk 2>
+    <Column 2 Chunk 2>
     ...
-    <Column N Chunk 2 + Column Metadata>
+    <Column N Chunk 2>
     ...
-    <Column 1 Chunk M + Column Metadata>
-    <Column 2 Chunk M + Column Metadata>
+    <Column 1 Chunk M>
+    <Column 2 Chunk M>
     ...
-    <Column N Chunk M + Column Metadata>
+    <Column N Chunk M>
     File Metadata
     4-byte length in bytes of file metadata (little endian)
     4-byte magic number "PAR1"
 
 In the above example, there are N columns in this table, split into M row
-groups.  The file metadata contains the locations of all the column metadata
+groups.  The file metadata contains the locations of all the column chunk
 start locations.  More details on what is contained in the metadata can be found
 in the Thrift definition.
 
-Metadata is written after the data to allow for single pass writing.
+File Metadata is written after the data to allow for single pass writing.
 
 Readers are expected to first read the file metadata to find all the column
 chunks they are interested in.  The columns chunks should then be read sequentially.
@@ -114,8 +123,8 @@ chunks they are interested in.  The columns chunks should then be read sequentia
  ![File Layout](https://raw.github.com/apache/parquet-format/master/doc/images/FileLayout.gif)
 
 ## Metadata
-There are three types of metadata: file metadata, column (chunk) metadata and page
-header metadata.  All thrift structures are serialized using the TCompactProtocol.
+There are two types of metadata: file metadata and page header metadata.  All thrift structures
+are serialized using the TCompactProtocol.
 
  ![Metadata diagram](https://github.com/apache/parquet-format/raw/master/doc/images/FileFormat.gif)
 
@@ -131,14 +140,15 @@ readers and writers for the format.  The types are:
   - INT96: 96 bit signed ints
   - FLOAT: IEEE 32-bit floating point values
   - DOUBLE: IEEE 64-bit floating point values
-  - BYTE_ARRAY: arbitrarily long byte arrays.
+  - BYTE_ARRAY: arbitrarily long byte arrays
+  - FIXED_LEN_BYTE_ARRAY: fixed length byte arrays
 
 ### Logical Types
 Logical types are used to extend the types that parquet can be used to store,
 by specifying how the primitive types should be interpreted. This keeps the set
 of primitive types to a minimum and reuses parquet's efficient encodings. For
-example, strings are stored as byte arrays (binary) with a UTF8 annotation.
-These annotations define how to further decode and interpret the data.
+example, strings are stored with the primitive type BYTE_ARRAY with a STRING
+annotation. These annotations define how to further decode and interpret the data.
 Annotations are stored as `LogicalType` fields in the file metadata and are
 documented in [LogicalTypes.md][logical-types].
 
@@ -175,7 +185,7 @@ following rules:
       * If the min is +0, the row group may contain -0 values as well.
       * If the max is -0, the row group may contain +0 values as well.
       * When looking for NaN values, min and max should be ignored.
-      
+
     * BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY - Lexicographic unsigned byte-wise
       comparison.
 
@@ -199,7 +209,7 @@ nothing else.
 
 ## Data Pages
 For data pages, the 3 pieces of information are encoded back to back, after the page
-header.
+header. No padding is allowed in the data page.
 In order we have:
  1. repetition levels data
  1. definition levels data
@@ -284,9 +294,14 @@ There are many places in the format for compatible extensions:
 - Encodings: Encodings are specified by enum and more can be added in the future.
 - Page types: Additional page types can be added and safely skipped.
 
+### [Binary Protocol Extensions](BinaryProtocolExtensions.md)
+
+Parquet Thrift IDL reserves field-id `32767` of every Thrift struct for extensions.
+The (Thrift) type of this field is always `binary`.
+
 ## Contributing
 Comment on the issue and/or contact [the parquet-dev mailing list](http://mail-archives.apache.org/mod_mbox/parquet-dev/) with your questions and ideas.
-Changes to this core format definition are proposed and discussed in depth on the mailing list. You may also be interested in contributing to the Parquet-MR subproject, which contains all the Java-side implementation and APIs. See the "How To Contribute" section of the [Parquet-MR project](https://github.com/apache/parquet-mr#how-to-contribute)
+Changes to this core format definition are proposed and discussed in depth on the mailing list. You may also be interested in contributing to the Parquet-Java subproject, which contains all the Java-side implementation and APIs. See the "How To Contribute" section of the [Parquet-Java project](https://github.com/apache/parquet-java#how-to-contribute)
 
 ## Code of Conduct
 

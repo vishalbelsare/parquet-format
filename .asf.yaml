@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,15 +15,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# https://cwiki.apache.org/confluence/display/INFRA/git+-+.asf.yaml+features
+#
+github:
+  description: "Apache Parquet Format"
+  homepage: https://parquet.apache.org/
+  labels:
+    - apache
+    - parquet
+    - parquet-format
+  
+  enabled_merge_buttons:
+    merge: false
+    squash: true
+    rebase: false
+  
+  features:
+    wiki: false
+    issues: true
+    projects: false
 
-generated/*
-target
-dependency-reduced-pom.xml
-.classpath
-.project
-
-# IDE stuff
-.idea/
-*.iml
-*.ipr
-*.iws
+notifications:
+  commits:      commits@parquet.apache.org
+  issues:       issues@parquet.apache.org
+  pullrequests: issues@parquet.apache.org
+  jira_options: link

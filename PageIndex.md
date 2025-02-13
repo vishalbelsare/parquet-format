@@ -17,11 +17,13 @@
   - under the License.
   -->
 
-# ColumnIndex Layout to Support Page Skipping
+# Parquet page index: Layout to Support Page Skipping
 
-This document describes the format for column index pages in the Parquet
-footer. These pages contain statistics for DataPages and can be used to skip
-pages when scanning data in ordered and unordered columns.
+In Parquet, a *page index* is optional metadata for a
+ColumnChunk, containing statistics for DataPages that can be used
+to skip those pages when scanning in ordered and unordered columns.
+The page index is stored using the OffsetIndex and ColumnIndex structures,
+defined in [`parquet.thrift`](src/main/thrift/parquet.thrift)
 
 ## Problem Statement
 In previous versions of the format, Statistics are stored for ColumnChunks in
@@ -34,17 +36,17 @@ data from disk.
 ## Goals
 1. Make both range scans and point lookups I/O efficient by allowing direct
    access to pages based on their min and max values. In particular:
-2. A single-row lookup in a row group based on the sort column of that row group
+    *  A single-row lookup in a row group based on the sort column of that row group
   will only read one data page per the retrieved column.
     * Range scans on the sort column will only need to read the exact data 
       pages that contain relevant data.
     * Make other selective scans I/O efficient: if we have a very selective
       predicate on a non-sorting column, for the other retrieved columns we
       should only need to access data pages that contain matching rows.
-3. No additional decoding effort for scans without selective predicates, e.g.,
+2. No additional decoding effort for scans without selective predicates, e.g.,
    full-row group scans. If a reader determines that it does not need to read 
    the index data, it does not incur any overhead.
-4. Index pages for sorted columns use minimal storage by storing only the
+3. Index pages for sorted columns use minimal storage by storing only the
    boundary elements between pages.
 
 ## Non-Goals
